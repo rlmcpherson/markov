@@ -100,19 +100,25 @@ func (c *Chain) Build(r io.Reader) {
 }
 
 // Generate returns a string of at most n words generated from Chain.
-func (c *Chain) Generate(n int) string {
+func (c *Chain) Generate(w io.Writer, n int) (err error) {
+	bw := bufio.NewWriter(w)
 	p := make(Prefix, c.prefixLen)
-	var words []string
 	for i := 0; i < n; i++ {
 		choices := c.chain[p.String()]
 		if len(choices) == 0 {
 			break
 		}
 		next := choices[rand.Intn(len(choices))]
-		words = append(words, next)
+		if _, err = fmt.Fprint(bw, next, " "); err != nil {
+			return
+
+		}
 		p.Shift(next)
 	}
-	return strings.Join(words, " ")
+	if err = bw.Flush(); err != nil {
+		return
+	}
+	return
 }
 
 func main() {
@@ -123,8 +129,9 @@ func main() {
 	flag.Parse()                     // Parse command-line flags.
 	rand.Seed(time.Now().UnixNano()) // Seed the random number generator.
 
-	c := NewChain(*prefixLen)     // Initialize a new Chain.
-	c.Build(os.Stdin)             // Build chains from standard input.
-	text := c.Generate(*numWords) // Generate text.
-	fmt.Println(text)             // Write text to standard output.
+	c := NewChain(*prefixLen)                                // Initialize a new Chain.
+	c.Build(os.Stdin)                                        // Build chains from standard input.
+	if err := c.Generate(os.Stdout, *numWords); err != nil { // Generate text.
+		panic(err)
+	}
 }
